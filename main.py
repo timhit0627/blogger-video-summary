@@ -22,27 +22,52 @@ def get_feishu_token():
         url,
         json={"app_id": FEISHU_APP_ID, "app_secret": FEISHU_APP_SECRET}
     )
-    return response.json()["tenant_access_token"]
+    # 增加令牌获取异常捕获，避免接口返回异常导致程序崩溃
+    try:
+        return response.json()["tenant_access_token"]
+    except KeyError:
+        print(f"❌ 飞书令牌获取失败，响应内容：{response.text}")
+        return None
 
 def read_creators_from_feishu():
-    """从飞书博主名单文档（表格）读取最新博主配置，自动过滤停用博主"""
+    """从飞书博主名单文档（表格）读取最新博主配置，自动过滤停用博主，增加异常捕获解决KeyError"""
     token = get_feishu_token()
+    if not token:
+        print("❌ 无有效飞书令牌，无法读取博主名单")
+        return []
+    
     # 飞书API：读取文档表格内容
     url = f"https://open.feishu.cn/open-apis/sheet/v2/spreadsheets/{FEISHU_CREATORS_DOC_ID}/values/Sheet1"
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.get(url, headers=headers)
-    data = response.json()["data"]["valueRange"]["values"]
+    
+    # 增加接口响应异常捕获，处理飞书表格返回格式不符问题（解决KeyError: 'valueRange'）
+    try:
+        response_json = response.json()
+        # 校验返回数据结构，确保存在data和valueRange字段
+        if "data" not in response_json or "valueRange" not in response_json["data"]:
+            print(f"❌ 飞书表格读取失败，返回格式异常：{response_json}")
+            return []
+        data = response_json["data"]["valueRange"]["values"]
+    except KeyError as e:
+        print(f"❌ 飞书表格数据解析失败，缺失字段：{e}，响应内容：{response.text}")
+        return []
+    except Exception as e:
+        print(f"❌ 飞书表格读取异常：{str(e)}，响应内容：{response.text}")
+        return []
     
     # 解析表格：跳过表头（第一行），提取有效博主
     creators = []
     for row in data[1:]:  # 第一行是列名，跳过
         if len(row) != 4:
+            print(f"⚠️  表格行格式错误（需4列），跳过该行：{row}")
             continue  # 跳过格式错误的行
         name, platform, url, enable = row
         # 转换启用状态为布尔值（飞书表格输入true/false会自动转为字符串，需处理）
         enable = enable.lower() == "true"
         # 校验平台格式（仅支持douyin/youtube）
         if platform not in ["douyin", "youtube"]:
+            print(f"⚠️  平台格式错误（仅支持douyin/youtube），跳过该博主：{name}")
             continue
         creators.append({
             "name": name,
@@ -93,6 +118,9 @@ def ai_classify_summary(content):
 def append_to_feishu_summary(content):
     """将总结内容追加到飞书观点汇总文档末尾"""
     token = get_feishu_token()
+    if not token:
+        print("❌ 无有效飞书令牌，无法写入观点汇总")
+        return
     url = f"https://open.feishu.cn/open-apis/docx/v1/paragraphs"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     data = {
@@ -151,6 +179,7 @@ def main():
 🔗 视频链接：{video["video_url"]}
 
 {summary}
+
 
 """
             # 写入飞书汇总文档
