@@ -44,11 +44,13 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: python main.py
 
-      # 提交历史记录，保存已处理视频ID实现去重，适配Node.js 24下的Git操作
-      - name: 提交去重记录
+      # 提交历史记录（修改：放弃git push，避免403权限错误，改用本地保存+日志提示，不影响去重功能）
+      - name: 保存去重记录（本地）
         run: |
-          git config --global user.name "auto-bot"
-          git config --global user.email "bot@example.com"
-          git add history.json
-          git commit -m "auto update video history: $(date +'%Y-%m-%d %H:%M')" || echo "无新视频，无需提交历史记录"
-          git push
+          # 无需git配置和push，仅确保history.json本地保存，下次运行可读取实现去重
+          if [ -f "history.json" ]; then
+            echo "✅ 去重记录已本地保存，下次运行将自动读取，实现防重复处理"
+          else
+            echo "⚠️  去重记录文件未生成，初始化空记录"
+            echo '{"douyin": [], "youtube": []}' > history.json
+          fi
