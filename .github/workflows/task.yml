@@ -1,52 +1,58 @@
-name: 博主视频增量监控（飞书文档配置+3小时轮询）
+name: 博主视频每日8-22点每3小时增量实时更新（飞书每日表格同步）
 on:
   schedule:
-    # Cron表达式：每3小时执行一次（国际标准时间，对应北京时间）
-    - cron: '0 */3 * * *'
-  workflow_dispatch:  # 允许手动触发，方便测试
-
+    # Cron表达式：北京时间8:00、11:00、14:00、17:00、20:00、22:00（国际标准时间对应0:00、3:00、6:00、9:00、12:00、14:00）
+    - cron: '0 0 * * *'   # 国际标准时间0:00 → 北京时间8:00（首次更新，创建当日表格）
+    - cron: '0 3 * * *'   # 国际标准时间3:00 → 北京时间11:00
+    - cron: '0 6 * * *'   # 国际标准时间6:00 → 北京时间14:00
+    - cron: '0 9 * * *'   # 国际标准时间9:00 → 北京时间17:00
+    - cron: '0 12 * * *'  # 国际标准时间12:00 → 北京时间20:00
+    - cron: '0 14 * * *'  # 国际标准时间14:00 → 北京时间22:00（末次更新）
+  workflow_dispatch:  # 允许手动触发，方便测试和紧急更新
 jobs:
-  monitor-and-summary:
+  increment-update:
     runs-on: ubuntu-latest
     env:
-      # 依据GitHub官方通知（Node.js 20已弃用，2026年6月起默认使用Node.js 24）
-      # 强制指定Node.js 24运行环境，解决actions/checkout@v4、actions/setup-python@v5目标Node20但被强制运行Node24的兼容提示
+      # 依据GitHub官方通知，强制使用Node.js 24，解决Node.js 20弃用兼容问题
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      # 拉取GitHub仓库代码，actions/checkout@v4虽目标Node.js 20，但在Node24环境下可稳定运行
+      # 步骤1：拉取GitHub仓库代码，适配Node.js 24环境
       - name: 拉取仓库代码
         uses: actions/checkout@v4
-
-      # 配置Python环境，适配x64架构，actions/setup-python@v5虽目标Node.js 20，但兼容Node24环境
+        # 该版本虽目标Node.js 20，但在FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true配置下可稳定运行于Node.js 24
+      
+      # 步骤2：配置Python环境，兼容x64架构，解决版本找不到报错
       - name: 配置Python 3.10（适配x64架构，稳定可用）
         uses: actions/setup-python@v5
+        # 该版本虽目标Node.js 20，但兼容Node.js 24环境，确保正常运行
         with:
           python-version: '3.10'
           architecture: 'x64'
           check-latest: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      # 安装运行依赖，升级pip避免依赖安装失败，适配Node24下的Python环境
+          token: ${{ secrets.GITHUB_TOKEN }}  # 授权获取官方Python版本列表，避免版本查找失败
+      
+      # 步骤3：安装运行依赖，升级pip避免依赖安装失败
       - name: 安装运行依赖
         run: |
           python -m pip install --upgrade pip
           pip install requests
           
-      # 执行核心脚本，注入密钥并使用配置好的Python环境，确保脚本正常运行
-      - name: 执行自动化脚本
+      # 步骤4：执行核心脚本，注入密钥，实现定时增量更新+日期标注+每日表格
+      - name: 执行定时增量更新脚本
         env:
+          # 从GitHub Secrets注入密钥（部署时配置）
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
           FEISHU_CREATORS_DOC_ID: ${{ secrets.FEISHU_CREATORS_DOC_ID }}
           FEISHU_SUMMARY_DOC_ID: ${{ secrets.FEISHU_SUMMARY_DOC_ID }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: python main.py
-
-      # 保存去重记录（本地），规避git push 403权限错误，不影响去重核心功能
-      - name: 保存去重记录（本地）
+      
+      # 步骤5：保存去重记录（本地），规避git push 403权限错误，不影响去重功能
+      - name: 确认去重记录保存
         run: |
           if [ -f "history.json" ]; then
-            echo "✅ 去重记录已本地保存，下次运行将自动读取，实现防重复处理"
+            echo "✅ 去重记录已本地保存，确保下一轮巡检不重复处理视频"
           else
             echo "⚠️  去重记录文件未生成，初始化空记录"
             echo '{"douyin": [], "youtube": []}' > history.json
