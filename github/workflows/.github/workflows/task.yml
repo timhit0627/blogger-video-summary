@@ -13,11 +13,12 @@ jobs:
       - name: 拉取仓库代码
         uses: actions/checkout@v4
 
-      # 步骤2：配置Python环境（适配脚本运行）
-      - name: 配置Python 3.11
+      # 步骤2：配置Python环境（适配脚本运行，解决x64架构3.7版本找不到问题）
+      - name: 配置Python 3.10（兼容x64架构，稳定可用）
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10"
+          architecture: "x64"  # 明确指定x64架构，避免版本匹配失败
 
       # 步骤3：安装依赖（仅需requests库）
       - name: 安装运行依赖
