@@ -1,0 +1,46 @@
+name: 博主视频增量监控（飞书文档配置+3小时轮询）
+on:
+  schedule:
+    # Cron表达式：每3小时执行一次（国际标准时间，对应北京时间）
+    - cron: '0 */3 * * *'
+  workflow_dispatch:  # 允许手动触发，方便测试
+
+jobs:
+  monitor-and-summary:
+    runs-on: ubuntu-latest
+    steps:
+      # 步骤1：拉取GitHub仓库代码
+      - name: 拉取仓库代码
+        uses: actions/checkout@v4
+
+      # 步骤2：配置Python环境（适配脚本运行）
+      - name: 配置Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 步骤3：安装依赖（仅需requests库）
+      - name: 安装运行依赖
+        run: |
+          pip install requests
+          
+      # 步骤4：执行核心脚本（读取飞书博主名单→巡检→总结→写入）
+      - name: 执行自动化脚本
+        env:
+          # 从GitHub Secrets注入密钥（部署时配置）
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_CREATORS_DOC_ID: ${{ secrets.FEISHU_CREATORS_DOC_ID }}
+          FEISHU_SUMMARY_DOC_ID: ${{ secrets.FEISHU_SUMMARY_DOC_ID }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+        run: python main.py
+
+      # 步骤5：提交历史记录更新（保存已处理视频ID，防重复）
+      - name: 提交去重记录
+        run: |
+          git config --global user.name "auto-bot"
+          git config --global user.email "bot@example.com"
+          git add history.json
+          # 若无更新，提交会失败，用echo忽略失败
+          git commit -m "auto update video history: $(date +'%Y-%m-%d %H:%M')" || echo "无新视频，无需提交历史记录"
+          git push
