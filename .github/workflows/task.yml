@@ -9,26 +9,24 @@ jobs:
   monitor-and-summary:
     runs-on: ubuntu-latest
     env:
-      # 按照GitHub官方通知要求，强制使用Node.js 24，提前适配Node.js 20弃用迁移
-      # 解决actions/checkout@v4、actions/setup-python@v5目标Node.js 20但被强制运行在Node.js 24的兼容问题
+      # 依据GitHub官方通知（Node.js 20已弃用，2026年6月起默认使用Node.js 24）
+      # 强制指定Node.js 24运行环境，解决actions/checkout@v4、actions/setup-python@v5目标Node20但被强制运行Node24的兼容提示
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      # 拉取GitHub仓库代码，使用官方稳定版本，适配Node.js 24运行环境
+      # 拉取GitHub仓库代码，actions/checkout@v4虽目标Node.js 20，但在Node24环境下可稳定运行
       - name: 拉取仓库代码
         uses: actions/checkout@v4
-        # 该版本虽目标Node.js 20，但在FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true配置下可稳定运行于Node.js 24
 
-      # 配置Python环境，兼容x64架构，同时适配Node.js 24运行上下文，解决Python版本缺失报错
+      # 配置Python环境，适配x64架构，actions/setup-python@v5虽目标Node.js 20，但兼容Node24环境
       - name: 配置Python 3.10（适配x64架构，稳定可用）
         uses: actions/setup-python@v5
-        # 该版本虽目标Node.js 20，但在FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true配置下可稳定运行于Node.js 24
         with:
           python-version: '3.10'
           architecture: 'x64'
           check-latest: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 安装运行依赖，升级pip避免依赖安装失败，适配Node.js 24下的Python环境
+      # 安装运行依赖，升级pip避免依赖安装失败，适配Node24下的Python环境
       - name: 安装运行依赖
         run: |
           python -m pip install --upgrade pip
@@ -44,10 +42,9 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: python main.py
 
-      # 提交历史记录（修改：放弃git push，避免403权限错误，改用本地保存+日志提示，不影响去重功能）
+      # 保存去重记录（本地），规避git push 403权限错误，不影响去重核心功能
       - name: 保存去重记录（本地）
         run: |
-          # 无需git配置和push，仅确保history.json本地保存，下次运行可读取实现去重
           if [ -f "history.json" ]; then
             echo "✅ 去重记录已本地保存，下次运行将自动读取，实现防重复处理"
           else
