@@ -9,29 +9,29 @@ jobs:
   monitor-and-summary:
     runs-on: ubuntu-latest
     env:
-      # 强制使用Node.js 24，解决Node.js 20弃用报错，提前适配官方要求
+      # 依据GitHub官方通知，强制使用Node.js 24，解决Node.js 20弃用问题，提前适配官方迁移要求
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      # 步骤1：拉取GitHub仓库代码（适配Node.js 24，使用最新兼容版本）
+      # 步骤1：拉取GitHub仓库代码，使用官方兼容Node.js 24的稳定版本
       - name: 拉取仓库代码
-        uses: actions/checkout@v4  # 官方最新兼容版本，支持Node.js 24
+        uses: actions/checkout@v4  # 适配Node.js 24环境，官方推荐稳定版本，虽目标为Node.js 20但可强制在Node.js 24上运行
 
-      # 步骤2：配置Python环境（兼容x64架构，彻底解决版本找不到问题）
+      # 步骤2：配置Python环境（兼容x64架构，彻底解决版本找不到问题，同时适配Node.js 24运行环境）
       - name: 配置Python 3.10（适配x64架构，稳定可用）
-        uses: actions/setup-python@v5  # 官方最新兼容版本，支持Node.js 24
+        uses: actions/setup-python@v5  # 适配Node.js 24环境，官方推荐稳定版本，虽目标为Node.js 20但可强制在Node.js 24上运行
         with:
-          python-version: '3.10'  # 明确指定3.10版本，GitHub Actions官方支持
+          python-version: '3.10'  # 明确指定3.10版本，GitHub Actions官方支持，适配x64架构
           architecture: 'x64'     # 强制匹配x64架构，避免版本缺失报错
           check-latest: true      # 自动校验最新补丁版本，确保可正常获取
-          token: ${{ secrets.GITHUB_TOKEN }}  # 授权获取官方Python版本列表
+          token: ${{ secrets.GITHUB_TOKEN }}  # 授权获取官方Python版本列表，避免版本查找失败
 
-      # 步骤3：安装依赖（明确升级pip，避免依赖安装失败）
+      # 步骤3：安装依赖（明确升级pip，避免依赖安装失败，适配Node.js 24下的Python环境）
       - name: 安装运行依赖
         run: |
           python -m pip install --upgrade pip
           pip install requests
           
-      # 步骤4：执行核心脚本（明确使用配置好的Python环境，避免环境冲突）
+      # 步骤4：执行核心脚本（明确使用配置好的Python环境，避免环境冲突，适配Node.js 24运行上下文）
       - name: 执行自动化脚本
         env:
           # 从GitHub Secrets注入密钥（部署时配置）
@@ -42,7 +42,7 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: python main.py
 
-      # 步骤5：提交历史记录更新（保存已处理视频ID，防重复）
+      # 步骤5：提交历史记录更新（保存已处理视频ID，防重复，适配Node.js 24下的Git操作）
       - name: 提交去重记录
         run: |
           git config --global user.name "auto-bot"
