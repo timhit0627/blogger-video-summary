@@ -13,13 +13,14 @@ jobs:
       - name: 拉取仓库代码
         uses: actions/checkout@v4
 
-      # 步骤2：配置Python环境（彻底解决版本报错，兼容x64架构，稳定可用）
-      - name: 配置Python 3.10（指定架构+规范版本格式）
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'  # 规范格式，添加引号避免解析异常
-          architecture: 'x64'     # 明确指定x64架构，匹配runner环境
-          check-latest: true      # 检查并使用最新补丁版本，避免版本缺失问题
+      # 步骤2：配置Python环境（兼容x64架构，彻底解决版本找不到问题）
+- name: 配置Python 3.10（适配x64架构，稳定可用）
+  uses: actions/setup-python@v5
+  with:
+    python-version: '3.10'  # 明确指定3.10版本，GitHub Actions官方支持
+    architecture: 'x64'     # 强制匹配x64架构，避免版本缺失报错
+    check-latest: true      # 自动校验最新补丁版本，确保可正常获取
+    token: ${{ secrets.GITHUB_TOKEN }}  # 授权获取官方Python版本列表
 
       # 步骤3：安装依赖（仅需requests库，明确指定pip命令）
       - name: 安装运行依赖
