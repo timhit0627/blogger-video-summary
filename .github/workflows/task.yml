@@ -18,12 +18,12 @@ jobs:
     steps:
       # 步骤1：拉取GitHub仓库代码，适配Node.js 24环境
       - name: 拉取仓库代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         # 该版本虽目标Node.js 20，但在FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true配置下可稳定运行于Node.js 24
       
       # 步骤2：配置Python环境，兼容x64架构，解决版本找不到报错
       - name: 配置Python 3.10（适配x64架构，稳定可用）
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         # 该版本虽目标Node.js 20，但兼容Node.js 24环境，确保正常运行
         with:
           python-version: '3.10'
