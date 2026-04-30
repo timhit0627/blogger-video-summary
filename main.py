@@ -39,18 +39,32 @@ def read_creators_from_feishu():
         print("❌ 无有效飞书令牌，无法读取博主名单")
         return []
     
-    # 飞书API：读取文档表格内容，优化请求逻辑
-    url = f"https://open.feishu.cn/open-apis/sheet/v2/spreadsheets/{FEISHU_CREATORS_DOC_ID}/values/Sheet1"
-    headers = {"Authorization": f"Bearer {token}"}
+    # 飞书API：读取云文档内嵌表格内容（适配个人账号，修正API地址）
+    url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{FEISHU_CREATORS_DOC_ID}/tables/0/cells"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
     try:
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         response_json = response.json()
-        # 校验返回格式，解决KeyError: 'valueRange'问题
-        if "data" not in response_json or "valueRange" not in response_json["data"]:
+        # 校验返回格式，适配云文档表格API返回结构
+        if "data" not in response_json or "cells" not in response_json["data"]:
             print(f"❌ 飞书表格读取失败，返回格式异常：{response_json}，请检查文档ID、表格格式")
             return []
-        data = response_json["data"]["valueRange"]["values"]
+        # 解析云文档表格数据（cells是二维列表，对应表格行和列）
+        cells = response_json["data"]["cells"]
+        # 云文档表格返回的cells可能有空值，需过滤，提取有效行
+        data = []
+        for row in cells:
+            row_data = []
+            for cell in row:
+                # 提取单元格文本内容，处理空值
+                cell_text = cell.get("textRun", {}).get("text", "").strip() if cell else ""
+                row_data.append(cell_text)
+            data.append(row_data)
         print(f"✅ 飞书表格读取成功，共获取{len(data)}行数据（含表头）")
     except Exception as e:
         print(f"❌ 飞书表格读取异常：{str(e)}，请检查文档ID、表格格式及飞书API权限")
@@ -62,10 +76,10 @@ def read_creators_from_feishu():
         print("⚠️ 飞书表格无有效博主数据（仅含表头或空表格），请添加博主信息")
         return []
     for row in data[1:]:
-        if len(row) != 4:
-            print(f"⚠️ 表格行格式错误（需4列），跳过该行：{row}")
-            continue
-        name, platform, url, enable = row
+        # 确保每行有4列（表头：博主名称、平台、链接、启用状态）
+        while len(row) < 4:
+            row.append("")  # 补全空列，避免索引报错
+        name, platform, url, enable = row[:4]
         enable = enable.lower() == "true"
         # 校验平台格式（仅支持douyin/youtube）
         if platform not in ["douyin", "youtube"]:
@@ -154,11 +168,16 @@ def ai_classify_summary(content):
     try:
         response = requests.post(AI_URL, headers=headers, json=payload, timeout=20)
         response.raise_for_status()
-        summary = response.json()["choices"][0]["message"]["content"]
+        response_json = response.json()
+        # 新增：校验返回格式，避免KeyError
+        if "choices" not in response_json or len(response_json["choices"]) == 0:
+            print(f"❌ AI总结失败：API返回格式异常，响应：{response_json}")
+            return "AI总结失败", "AI总结失败"
+        summary = response_json["choices"][0]["message"]["content"]
         # 拆分投资观点和认知观点（适配表格两列）
         investment_view = "无相关观点"
         cognition_view = "无相关观点"
-        if "【投资观点】" in summary:
+        if "【投资观点】" in summary and "【认知/价值观观点】" in summary:
             investment_view = summary.split("【投资观点】：")[1].split("【认知/价值观观点】")[0].strip()
             cognition_view = summary.split("【认知/价值观观点】：")[1].strip()
         return investment_view, cognition_view
@@ -173,7 +192,11 @@ def check_today_table_exists(today_date_mark):
         return False
     # 飞书API：获取文档内容，判断日期标注是否存在
     url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{FEISHU_SUMMARY_DOC_ID}/content"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
     try:
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
@@ -195,17 +218,25 @@ def create_today_table(today_date_mark):
     if not token:
         print("❌ 无有效飞书令牌，无法创建日期标注及表格")
         return
-    # 1. 写入日期标注（格式：【2026-4-28】）
-    url = f"https://open.feishu.cn/open-apis/docx/v1/paragraphs"
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+    # 1. 写入日期标注（格式：【2026-4-28】），修正API地址（补充文档ID）
+    url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{FEISHU_SUMMARY_DOC_ID}/paragraphs"
     # 日期标注（加粗显示，更醒目）
     mark_paragraph = {
-        "document_id": FEISHU_SUMMARY_DOC_ID,
-        "position": -1,
+        "position": -1,  # -1表示插入到文档末尾
         "paragraphs": [
             {
-                "text": today_date_mark,
-                "textRun": {"bold": True}
+                "elements": [
+                    {
+                        "type": "textRun",
+                        "text": today_date_mark,
+                        "textStyle": {"bold": True}
+                    }
+                ]
             }
         ]
     }
@@ -218,16 +249,27 @@ def create_today_table(today_date_mark):
         print(f"❌ 日期标注创建失败：{str(e)}，请检查飞书API权限")
         return
     
-    # 2. 创建当日独立表格（7列表头）
-    table_url = f"https://open.feishu.cn/open-apis/sheet/v2/spreadsheets/{FEISHU_SUMMARY_DOC_ID}/values/Sheet1:append"
-    # 表格表头（7列，顺序不可改）
-    table_headers = [
-        ["更新时间", "博主名称", "平台", "视频标题", "视频链接", "投资观点", "认知/价值观观点"]
-    ]
+    # 2. 创建当日独立表格（7列表头），适配云文档表格API
+    table_url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{FEISHU_SUMMARY_DOC_ID}/tables"
+    # 表格配置（7列，表头内容）
     table_data = {
-        "valueRange": {"values": table_headers},
-        "insertDataOption": "INSERT_ROWS",
-        "valueInputOption": "RAW"
+        "position": -1,  # 插入到文档末尾（日期标注之后）
+        "table": {
+            "columns": 7,  # 7列，对应表头数量
+            "rows": 1,     # 先创建1行（表头）
+            "cells": [
+                [
+                    # 表头单元格内容（顺序：更新时间、博主名称、平台、视频标题、视频链接、投资观点、认知/价值观观点）
+                    {"elements": [{"type": "textRun", "text": "更新时间"}]},
+                    {"elements": [{"type": "textRun", "text": "博主名称"}]},
+                    {"elements": [{"type": "textRun", "text": "平台"}]},
+                    {"elements": [{"type": "textRun", "text": "视频标题"}]},
+                    {"elements": [{"type": "textRun", "text": "视频链接"}]},
+                    {"elements": [{"type": "textRun", "text": "投资观点"}]},
+                    {"elements": [{"type": "textRun", "text": "认知/价值观观点"}]}
+                ]
+            ]
+        }
     }
     try:
         response = requests.post(table_url, json=table_data, headers=headers, timeout=15)
@@ -242,18 +284,42 @@ def append_to_today_table(row_data):
     if not token:
         print("❌ 无有效飞书令牌，无法写入飞书表格")
         return
-    # 飞书表格API：追加行数据（Sheet1为表格所在工作表，默认Sheet1）
-    url = f"https://open.feishu.cn/open-apis/sheet/v2/spreadsheets/{FEISHU_SUMMARY_DOC_ID}/values/Sheet1:append"
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    data = {
-        "valueRange": {
-            "values": [row_data]  # 单行数据，对应7列
-        },
-        "insertDataOption": "INSERT_ROWS",  # 在表格末尾插入新行
-        "valueInputOption": "RAW"  # 原始格式写入，避免格式错乱
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    }
+    # 步骤1：先获取汇总文档中所有表格，找到当日创建的表格（最后一个表格，即最新创建的）
+    get_tables_url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{FEISHU_SUMMARY_DOC_ID}/tables"
+    try:
+        tables_response = requests.get(get_tables_url, headers=headers, timeout=15)
+        tables_response.raise_for_status()
+        tables_data = tables_response.json()
+        if "data" not in tables_data or "tables" not in tables_data["data"]:
+            print(f"❌ 获取表格列表失败，无法追加数据：{tables_data}")
+            return
+        tables = tables_data["data"]["tables"]
+        if not tables:
+            print("❌ 飞书文档中无表格，无法追加数据")
+            return
+        # 当日表格是最后一个（最新创建的），获取表格ID
+        today_table_id = tables[-1]["table_id"]
+    except Exception as e:
+        print(f"❌ 获取当日表格ID失败：{str(e)}")
+        return
+    
+    # 步骤2：向当日表格追加行数据（7列，对应row_data）
+    append_url = f"https://open.feishu.cn/open-apis/docx/v1/documents/{FEISHU_SUMMARY_DOC_ID}/tables/{today_table_id}/rows"
+    # 组装行数据（每个单元格对应row_data中的一个元素）
+    row_cells = []
+    for item in row_data:
+        row_cells.append({"elements": [{"type": "textRun", "text": str(item)}]})
+    append_data = {
+        "position": -1,  # 追加到表格末尾
+        "rows": [{"cells": row_cells}]
     }
     try:
-        response = requests.post(url, json=data, headers=headers, timeout=15)
+        response = requests.post(append_url, json=append_data, headers=headers, timeout=15)
         response.raise_for_status()
         print(f"✅ 表格行数据已成功追加到当日表格")
     except Exception as e:
