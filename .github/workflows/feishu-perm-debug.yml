@@ -71,5 +71,4 @@ if table_response.status_code == 403 and table_response.json().get('code') == 90
     print('   - drive:drive  - drive:drive:readonly')
     print('   - sheets:spreadsheet  - sheets:spreadsheet:readonly')
     print('2. 两个飞书表格→分享→添加你的自建应用为协作者（可编辑权限）')
-    print('3. 等待1-3分钟（权限缓存），重新运行该Workflow')
-          "
+    print('3. 等待1-3分钟（权限缓存），重新运行该Workflow')"
