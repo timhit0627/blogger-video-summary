@@ -1,0 +1,75 @@
+name: 飞书权限调试（排查90213错误）
+on:
+  # 两种触发方式，任选其一或都保留
+  workflow_dispatch:  # 手动触发（推荐，需要时手动点运行）
+  push:               # 推送代码时自动触发（可选，按需开启）
+    branches: [main]  # 仅main分支推送时触发，可修改为你的分支名
+
+jobs:
+  debug-feishu-permission:
+    runs-on: ubuntu-latest  # 云端运行环境，无需本地配置
+    steps:
+      - name: 拉取仓库代码
+        uses: actions/checkout@v4  # 拉取当前仓库代码到云端环境
+
+      - name: 配置Python环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'  # 适配你的代码，与本地Python版本一致即可
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests  # 仅需安装requests，无需额外依赖
+
+      - name: 运行权限调试脚本
+        env:
+          # 自动读取GitHub仓库Secrets中的密钥，无需手动填写
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+          FEISHU_CREATORS_DOC_ID: ${{ secrets.FEISHU_CREATORS_DOC_ID }}
+        run: |
+          python -c "
+import os
+import requests
+
+# 读取环境变量（Secrets自动注入）
+FEISHU_APP_ID = os.getenv('FEISHU_APP_ID')
+FEISHU_APP_SECRET = os.getenv('FEISHU_APP_SECRET')
+CREATORS_ID = os.getenv('FEISHU_CREATORS_DOC_ID')
+
+# 1. 获取飞书tenant_access_token
+print('='*50)
+print('开始获取飞书Token...')
+token_response = requests.post(
+    'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
+    json={'app_id': FEISHU_APP_ID, 'app_secret': FEISHU_APP_SECRET},
+    timeout=15
+)
+print('Token接口响应：', token_response.status_code, token_response.json())
+token = token_response.json().get('tenant_access_token')
+
+if not token:
+    print('❌ Token获取失败，无法继续调试')
+    exit(1)
+
+# 2. 测试访问博主名单表格（排查90213权限错误）
+print('='*50)
+print('开始测试访问博主名单表格...')
+table_response = requests.get(
+    f'https://open.feishu.cn/open-apis/sheet/v2/spreadsheets/{CREATORS_ID}/values/Sheet1',
+    headers={'Authorization': f'Bearer {token}'},
+    timeout=15
+)
+print('表格访问响应：', table_response.status_code, table_response.json())
+print('='*50)
+
+# 3. 错误码解析（辅助定位问题）
+if table_response.status_code == 403 and table_response.json().get('code') == 90213:
+    print('❌ 检测到90213错误（user not permitted），请按以下步骤排查：')
+    print('1. 飞书开放平台→你的应用→权限管理，勾选4个权限并发布版本：')
+    print('   - drive:drive  - drive:drive:readonly')
+    print('   - sheets:spreadsheet  - sheets:spreadsheet:readonly')
+    print('2. 两个飞书表格→分享→添加你的自建应用为协作者（可编辑权限）')
+    print('3. 等待1-3分钟（权限缓存），重新运行该Workflow')
+          "
