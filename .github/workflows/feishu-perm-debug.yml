@@ -18,28 +18,4 @@ jobs:
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
           FEISHU_CREATORS_DOC_ID: ${{ secrets.FEISHU_CREATORS_DOC_ID }}
-        run: >-
-          python -c "import os; import requests;
-FEISHU_APP_ID = os.getenv('FEISHU_APP_ID');
-FEISHU_APP_SECRET = os.getenv('FEISHU_APP_SECRET');
-CREATORS_ID = os.getenv('FEISHU_CREATORS_DOC_ID');
-print('='*50);
-print('开始获取飞书Token...');
-token_response = requests.post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', json={'app_id': FEISHU_APP_ID, 'app_secret': FEISHU_APP_SECRET}, timeout=15);
-print('Token接口响应：', token_response.status_code, token_response.json());
-token = token_response.json().get('tenant_access_token');
-if not token:
-    print('❌ Token获取失败，无法继续调试');
-    exit(1);
-print('='*50);
-print('开始测试访问博主名单表格...');
-table_response = requests.get(f'https://open.feishu.cn/open-apis/sheet/v2/spreadsheets/{CREATORS_ID}/values/Sheet1', headers={'Authorization': f'Bearer {token}'}, timeout=15);
-print('表格访问响应：', table_response.status_code, table_response.json());
-print('='*50);
-if table_response.status_code == 403 and table_response.json().get('code') == 90213:
-    print('❌ 检测到90213错误（user not permitted），请按以下步骤排查：');
-    print('1. 飞书开放平台→你的应用→权限管理，勾选4个权限并发布版本：');
-    print('   - drive:drive  - drive:drive:readonly');
-    print('   - sheets:spreadsheet  - sheets:spreadsheet:readonly');
-    print('2. 两个飞书表格→分享→添加你的自建应用为协作者（可编辑权限）');
-    print('3. 等待1-3分钟（权限缓存），重新运行该Workflow')"
+        run: python -c "import os; import requests; FEISHU_APP_ID = os.getenv('FEISHU_APP_ID'); FEISHU_APP_SECRET = os.getenv('FEISHU_APP_SECRET'); CREATORS_ID = os.getenv('FEISHU_CREATORS_DOC_ID'); print('='*50); print('开始获取飞书Token...'); token_response = requests.post('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', json={'app_id': FEISHU_APP_ID, 'app_secret': FEISHU_APP_SECRET}, timeout=15); print('Token接口响应：', token_response.status_code, token_response.json()); token = token_response.json().get('tenant_access_token'); if not token: print('❌ Token获取失败，无法继续调试'); exit(1); print('='*50); print('开始测试访问博主名单表格...'); table_response = requests.get(f'https://open.feishu.cn/open-apis/sheet/v2/spreadsheets/{CREATORS_ID}/values/Sheet1', headers={'Authorization': f'Bearer {token}'}, timeout=15); print('表格访问响应：', table_response.status_code, table_response.json()); print('='*50); if table_response.status_code == 403 and table_response.json().get('code') == 90213: print('❌ 检测到90213错误（user not permitted），请按以下步骤排查：'); print('1. 飞书开放平台→你的应用→权限管理，勾选4个权限并发布版本：'); print('   - drive:drive  - drive:drive:readonly'); print('   - sheets:spreadsheet  - sheets:spreadsheet:readonly'); print('2. 两个飞书表格→分享→添加你的自建应用为协作者（可编辑权限）'); print('3. 等待1-3分钟（权限缓存），重新运行该Workflow')"
