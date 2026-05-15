@@ -5,13 +5,13 @@ jobs:
   debug-feishu-permission:
     runs-on: ubuntu-latest
     env:
-      # 强制使用Node.js 24，解决Node.js 20弃用警告，避免exit code 1
+      # 强制使用Node.js 24，适配GitHub Actions最新要求，解决弃用警告
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: 拉取仓库代码
-        uses: actions/checkout@v4.2.0  # 兼容Node.js 24的稳定版本
+        uses: actions/checkout@v4.6.0  # 完全适配Node.js 24，解决版本不兼容问题
       - name: 配置Python环境
-        uses: actions/setup-python@v5.2.0  # 兼容Node.js 24的稳定版本
+        uses: actions/setup-python@v5.3.0  # 完全适配Node.js 24，解决版本不兼容问题
         with:
           python-version: "3.9"
       - name: 安装依赖
