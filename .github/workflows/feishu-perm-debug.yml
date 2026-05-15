@@ -9,9 +9,9 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: 拉取仓库代码
-        uses: actions/checkout@v4  # 官方稳定大版本，可正常识别、适配Node.js 24，彻底解决版本找不到问题
+        uses: actions/checkout@v4.0.0  # 官方明确适配Node.js 24的稳定版本，可正常识别，解决版本适配警告
       - name: 配置Python环境
-        uses: actions/setup-python@v5.3.0  # 完全适配Node.js 24，官方可正常识别
+        uses: actions/setup-python@v5.0.0  # 官方明确适配Node.js 24的稳定版本，可正常识别，解决版本适配警告
         with:
           python-version: "3.9"
       - name: 安装依赖
